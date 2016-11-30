@@ -13,8 +13,16 @@ calc(InputFileName, Beta, K, Iteraciones, Nodes, OutputFileName) ->
   SchedulerExecutors = lists:flatten([lists:duplicate(K, Node) || Node <- Nodes]),
   Scheduler = brin_scheduler:init(SchedulerExecutors, NumChunks, brin_ops, handle_map),
   VectorChunk = lists:map(fun(_) -> 1 / N end, lists:seq(1, N)),
+
+  %Running map
   MapResult = run_maps(Scheduler, VectorChunk, ChunkSize, Beta, N, length(SchedulerExecutors), NumChunks),
-  MapResult.
+
+  %Collecting
+  GroupedByKey = collect_results(MapResult),
+  ReduceResult = run_reduce(Scheduler,GroupedByKey),
+  SortedResultingVector = lists:sort(ReduceResult,fun({KeyA,_},{KeyB,_})-> KeyA < KeyB end),
+
+  SortedResultingVector.
 
 run_maps(_Scheduler, _Vector, _ChunkSize, _Beta, _N, 0, _NumChunks) ->
   receive {ok, Result} -> Result end;
@@ -30,6 +38,25 @@ run_maps_aux(Scheduler, _ChunkVector, Vector, ChunkSize, Beta, N, NumExecutors, 
 run_maps_aux(Scheduler, ChunkVector, Vector, ChunkSize, Beta, N, NumExecutors, ExecutorCnt, ChunkId) ->
   Scheduler ! {schedule, {map, ChunkId - 1, NumExecutors, ChunkVector, Beta, N}},
   run_maps_aux(Scheduler, ChunkVector, Vector, ChunkSize, Beta, N, NumExecutors, ExecutorCnt - 1, ChunkId - 1).
+
+collect_results(TupleResults) ->
+    collect_results(lists:flatten(TupleResults),maps:new()).
+collect_results([],Map) ->
+  Map;
+collect_results([{Key,Val}|Rest],Map) ->
+  case maps:find(Key,Map) of
+    {ok, List} ->
+      NewList = [Val|List],
+      collect_results(Rest,maps:update(Key,NewList,Map));
+    _ ->
+      NewList = [Val],
+      collect_results(Rest,maps:put(Key,NewList,Map))
+  end.
+
+run_reduce(Scheduler,GroupedByKey) when is_map(GroupedByKey)->
+  lists:foreach(fun({Key,ListVals})->
+    Scheduler ! {schedule, {reduce,{Key,ListVals}}}
+  end,maps:keys(GroupedByKey)).
 
 %%mainThread(File, Executors) ->
 %%  io:format("M: init~n"),
