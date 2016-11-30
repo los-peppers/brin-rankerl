@@ -22,11 +22,9 @@ init(Workers, TaskCnt, TaskModule, TaskFun) ->
 event_loop(MasterPid, _, _, _, 0, _, Results) -> MasterPid ! {ok, Results};
 event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, Tasks, Results) ->
     RunningTasks = dict:size(Tasks),
-    io:format("DEBUG: Receiving~n"),
     receive
         % Schedule task when workers are available
         {schedule, Task} when Workers =/= [] ->
-            io:format("DEBUG: Scheduling tastk~n"),
             [Worker|NewWorkers] = Workers,
             NewTasks = case net_adm:ping(Worker) of
                 pong ->
@@ -43,7 +41,6 @@ event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, Tasks, Results) ->
         {schedule, _} when Workers =:= [], RunningTasks =:= 0 -> exit(nowokers);
         % Receive a list of partial responses from worker
         {emit, TaskPid, PartialResults} when is_list(PartialResults) ->
-            io:format("DEBUG: emit~n"),
             UpdateFun = fun ([{Worker, Task, TaskResults}]) ->
                 [{Worker, Task, lists:append(PartialResults, TaskResults)}]
             end,
@@ -51,7 +48,6 @@ event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, Tasks, Results) ->
             event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, NewTasks, Results);
         % Receive a partial response from worker
         {emit, TaskPid, PartialResult} ->
-            io:format("DEBUG: emit~n"),
             UpdateFun = fun ([{Worker, Task, TaskResults}]) ->
                 [{Worker, Task, [PartialResult|TaskResults]}]
             end,
@@ -59,7 +55,6 @@ event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, Tasks, Results) ->
             event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, NewTasks, Results);
         % Handle the normal exit of a worker
         {'EXIT', TaskPid, normal} when TaskPid =/= self() ->
-            io:format("DEBUG: Task ~p finished successfully~n", [TaskPid]),
             [{Worker, _, PartialResults}] = dict:fetch(TaskPid, Tasks),
             NewTasks = dict:erase(TaskPid, Tasks),
             NewWorkers = [Worker|Workers],
@@ -68,8 +63,8 @@ event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, Tasks, Results) ->
             event_loop(MasterPid, TaskModule, TaskFun, NewWorkers, NewTaskCnt, NewTasks, NewResults);
         % Handle the unexpected exit of a worker
         {'EXIT', TaskPid, Reason} when TaskPid =/= self() ->
-            io:format("DEBUG: Task ~p finished unexpectedly. Reason: ~p~n", [TaskPid, Reason]),
             [{Worker, Task, _}] = dict:fetch(TaskPid, Tasks),
+            io:format("ERROR: Task ~p on worker ~p finished unexpectedly. Reason: ~p~n", [TaskPid, Worker, Reason]),
             NewTasks = dict:erase(TaskPid, Tasks),
             NewWorkers = [Worker|Workers],
             self() ! {schedule, Task},
