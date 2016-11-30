@@ -145,3 +145,6 @@ get_source(Id, K) ->
 string_to_integer(DegreeLine) ->
   Degree = list_to_integer(DegreeLine),
   Degree.
+
+parse_file_path(ChunkId) ->
+    lists:join("/tmp/brinio/",integer_to_list(ChunkId)).

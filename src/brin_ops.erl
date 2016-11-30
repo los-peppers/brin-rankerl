@@ -13,9 +13,11 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%RPC CALLBACKS%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
-handle_map(TaskPid, Dest, {ChunkId,VectorChunk,Beta,K,N}) ->
+handle_map(TaskPid, Dest, {map,ChunkId,ChunkSize,Beta,K,N}) ->
+    io:format("called handle map"),
+    VectorChunk = lists:map(fun(_)-> 1/N end,lists:seq(1,ChunkSize)), %TODO: not generate at once. maybe
     Dest ! {emit, TaskPid, node()},
-    io:format("Running on ~p~n", [node()]),
+%    io:format("Running on ~p~n", [node()]),
     Res = doMap(ChunkId,VectorChunk,Beta,K,N),
     Dest ! {emit, TaskPid, Res}.
 
@@ -99,14 +101,18 @@ operateVector(MatrixChunk,VectorChunk,Beta,_K,N) ->
 
 
 %%%% MISC TEST FUCTIONS
-readMtx(_FilePath) ->
-%%    io:format("~p",[FilePath]),
-  [
-    #node{source=1,degree=3,destinations=[2,3,4]},
-    #node{source=2,degree=2,destinations=[1,4]},
-    #node{source=3,degree=1,destinations=[1]},
-    #node{source=4,degree=2,destinations=[2,3]}
-  ].
+readMtx(ChunkId) ->
+    FilePath = parseFilePath(ChunkId),
+    brin_io:read_chunk(FilePath).
+
+%readMtx(_FilePath) ->
+%%%    io:format("~p",[FilePath]),
+%  [
+%    #node{source=1,degree=3,destinations=[2,3,4]},
+%    #node{source=2,degree=2,destinations=[1,4]},
+%    #node{source=3,degree=1,destinations=[1]},
+%    #node{source=4,degree=2,destinations=[2,3]}
+%  ].
 
 parseFilePath(_X) -> "sdfasdf".
 
