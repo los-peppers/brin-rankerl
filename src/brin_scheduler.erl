@@ -21,7 +21,7 @@ init(Workers, TaskCnt, TaskModule, TaskFun) ->
 -spec event_loop(pid(), module(), atom(), list(node()), integer(), dict:dict(), list()) -> none().
 event_loop(MasterPid, _, _, _, 0, _, Results) -> MasterPid ! {ok, Results};
 event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, Tasks, Results) ->
-    RunngingTasks = dict:size(Tasks),
+    RunningTasks = dict:size(Tasks),
     io:format("DEBUG: Receiving~n"),
     receive
         % Schedule task when workers are available
@@ -40,7 +40,7 @@ event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, Tasks, Results) ->
             end,
             event_loop(MasterPid, TaskModule, TaskFun, NewWorkers, TaskCnt, NewTasks, Results);
         % Scheduling task when there are no workers available or busy
-        {schedule, _} when Workers =:= [], RunngingTasks =:= 0 -> exit(nowokers);
+        {schedule, _} when Workers =:= [], RunningTasks =:= 0 -> exit(nowokers);
         % Receive a list of partial responses from worker
         {emit, TaskPid, PartialResults} when is_list(PartialResults) ->
             io:format("DEBUG: emit~n"),

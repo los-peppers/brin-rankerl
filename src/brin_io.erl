@@ -10,7 +10,7 @@ create_chunks(FileName, Executors) ->
   ChunkSize = calc_chunk_size(NumSites, Executors),
   create_chunks(IoDevice, Executors, ChunkSize, NumSites),
   file:close(IoDevice),
-  {ok, NumSites, math:pow(Executors, 2), ChunkSize}.
+  {ok, NumSites, trunc(ChunkSize)}.
 
 calc_chunk_size(NumSites, Executors) ->
   Size = NumSites div Executors,
