@@ -16,6 +16,18 @@ calc(InputFileName, Beta, K, Iteraciones, Nodes, OutputFileName) ->
   MapResult = run_maps(Scheduler, VectorChunk, ChunkSize, Beta, N, length(SchedulerExecutors), NumChunks),
   MapResult.
 
+%%run_maps(Scheduler, Vector, ChunkSize, Beta, N, NumExecutors, NumChunks) ->
+%%  run_maps_aux(Scheduler, [], Vector, ChunkSize, Beta, N, NumExecutors, NumChunks),
+%%  receive {ok, Result} -> Result end.
+%%
+%%run_maps_aux(_, _, _, _, _, _, _, -1) -> ok;
+%%run_maps_aux(Scheduler, _, Vector, ChunkSize, Beta, N, ExecutorCnt, ChunkID) when ChunkID rem ExecutorCnt =:= 0 ->
+%%  {Head, Tail} = lists:split(ExecutorCnt, Vector),
+%%  run_maps_aux(Scheduler, Head, Tail, ChunkSize, Beta, N, ExecutorCnt, ChunkID);
+%%run_maps_aux(Scheduler, VectorChunk, Vector, ChunkSize, Beta, N, ExecutorCnt, ChunkID) ->
+%%  Scheduler ! {schedule, {map, ChunkID, VectorChunk, Beta, N}},
+%%  run_maps_aux(Scheduler, VectorChunk, Vector, ChunkSize, Beta, N, ExecutorCnt, ChunkID -1).
+
 run_maps(_Scheduler, _Vector, _ChunkSize, _Beta, _N, 0, _NumChunks) ->
   receive {ok, Result} -> Result end;
 run_maps(Scheduler, Vector, ChunkSize, Beta, N, NumExecutors, NumChunks) ->
@@ -28,8 +40,8 @@ run_maps_aux(Scheduler, _ChunkVector, Vector, ChunkSize, Beta, N, NumExecutors, 
   {HeadVector, TailVector} = lists:split(Index, Vector),
   run_maps_aux(Scheduler, TailVector, HeadVector, ChunkSize, Beta, N, NumExecutors, NumExecutors, ChunkId);
 run_maps_aux(Scheduler, ChunkVector, Vector, ChunkSize, Beta, N, NumExecutors, ExecutorCnt, ChunkId) ->
-  Scheduler ! {schedule, {map, ChunkId, ChunkVector, Beta, N}},
-  run_maps_aux(Scheduler, ChunkVector, Vector, ChunkSize, Beta, N, NumExecutors, ExecutorCnt, ChunkId - 1).
+  Scheduler ! {schedule, {map, ChunkId - 1, NumExecutors, ChunkVector, Beta, N}},
+  run_maps_aux(Scheduler, ChunkVector, Vector, ChunkSize, Beta, N, NumExecutors, ExecutorCnt - 1, ChunkId - 1).
 
 %%mainThread(File, Executors) ->
 %%  io:format("M: init~n"),
