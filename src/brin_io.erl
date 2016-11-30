@@ -7,10 +7,17 @@
 create_chunks(FileName, Executors) ->
   {ok, IoDevice} = file:open(FileName, [read]),
   NumSites = read_num_sites(IoDevice),
-  ChunkSize = NumSites div Executors + 1,
+  ChunkSize = calc_chunk_size(NumSites, Executors),
   create_chunks(IoDevice, Executors, ChunkSize, NumSites),
   file:close(IoDevice),
   {ok, NumSites, math:pow(Executors, 2), ChunkSize}.
+
+calc_chunk_size(NumSites, Executors) ->
+  Size = NumSites div Executors,
+  case NumSites rem Executors of
+    0 -> Size;
+    _ -> Size + 1
+  end.
 
 read_num_sites(IoDevice) ->
   case io:get_line(IoDevice, "") of
