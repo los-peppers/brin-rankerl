@@ -114,21 +114,25 @@ read_chunk(FileName, K) ->
   Nodes.
 
 create_node(IoDevice, Id, K) ->
-  do_create_node(IoDevice, Id, K, []).
-
-do_create_node(_Device, _Id, 0, Nodes) -> Nodes;
-do_create_node(Device, Id, K, Nodes) when K > 0 ->
-  DegreeLine = io:get_line(Device, ""),
-  DestinationsLine = io:get_line(Device, ""),
   Source = get_source(Id, K),
-  Degree = string_to_integer(DegreeLine),
+  do_create_node(read_node_lines(IoDevice), IoDevice, Source, K, []).
+
+do_create_node({DegreeLine, DestinationsLine}, _, _, _, Nodes) when DegreeLine =:= eof orelse DestinationsLine =:= eof ->
+  lists:reverse(Nodes);
+do_create_node({DegreeLine, DestinationsLine}, Device, Source, K, Nodes) ->
+  Degree = string_to_integer(string:sub_string(DegreeLine, 1, length(DegreeLine) - 1)),
   Destinations = list_to_integers(DestinationsLine),
   Node = #node{
     source = Source,
     degree = Degree,
     destinations = Destinations
   },
-  do_create_node(Device, Id, K, [Node | Nodes]).
+  do_create_node(read_node_lines(Device), Device, Source + 1, K - 1, [Node | Nodes]).
+
+read_node_lines(Device) ->
+  DegreeLine = io:get_line(Device, ""),
+  DestinationsLine = io:get_line(Device, ""),
+  {DegreeLine, DestinationsLine}.
 
 extract_id(FileName) ->
   [Id | _] = lists:reverse(string:tokens(FileName, "/")),
