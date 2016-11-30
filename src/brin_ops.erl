@@ -26,12 +26,24 @@ handle_map(TaskPid, Dest, {map,ChunkId,ChunkSize,Beta,K,N}) ->
 %%%%%%%%%%%%%%%%%%%%
 
 test()->
-  doMap(123,[0.25,0.25,0.25,0.25],0.8,4,4).
+  doMap(0,[0.25,0.25,0.25,0.25],0.8,4,4).
 
 doMap(ChunkId,VectorChunk,Beta,K,N) ->
-  FilePath = parseFilePath(ChunkId),
-  MatrixChunk = readMtx(FilePath),
+  FilePath = brin_io:parse_file_path(ChunkId),
+  io:format("FilePath: ~p~n",[FilePath]),
+%%  MatrixChunk = brin_io:read_chunk(FilePath,1),
+  MatrixChunk = readMtx(""),
+  io:format("~p~n",[MatrixChunk]),
   doUntilConverged(VectorChunk,{MatrixChunk,Beta,K,N},1000,0.01).
+
+readMtx(_FilePath) ->
+%%    io:format("~p",[_FilePath]),
+  [
+    #node{source=0,degree=3,destinations=[1,2,3]},
+    #node{source=1,degree=2,destinations=[0,3]},
+    #node{source=2,degree=1,destinations=[0]},
+    #node{source=3,degree=2,destinations=[1,2]}
+  ].
 
 doUntilConverged(Vector,{MatrixChunk,Beta,K,N},MaxIterations,Delta) when MaxIterations > 0 ->
     NewVector = operateVector(MatrixChunk,Vector,Beta,K,N),
@@ -82,7 +94,7 @@ operateVector(MatrixChunk,VectorChunk,Beta,_K,N) ->
       end
     end,Zipped),
     lists:sum(Mapped)%Assuming elements are in order.
-  end,lists:seq(1,_K)).
+  end,lists:seq(0,_K-1)).
 %%  operateVector(MatrixChunk,VectorChunk,Beta,[]);
 %%operateVector([Row|Rest],VectorChunk,Beta,Acc) ->
   %Result = VECTOR * ROW WITH THAT RANDOM SHIT IN THE FORMULA
@@ -100,10 +112,7 @@ operateVector(MatrixChunk,VectorChunk,Beta,_K,N) ->
 
 
 
-%%%% MISC TEST FUCTIONS
-readMtx(ChunkId) ->
-    FilePath = parseFilePath(ChunkId),
-    brin_io:read_chunk(FilePath).
+
 
 %readMtx(_FilePath) ->
 %%%    io:format("~p",[FilePath]),
@@ -113,8 +122,6 @@ readMtx(ChunkId) ->
 %    #node{source=3,degree=1,destinations=[1]},
 %    #node{source=4,degree=2,destinations=[2,3]}
 %  ].
-
-parseFilePath(_X) -> "sdfasdf".
 
 %doNTimes(Vector,_Params,0)->Vector;
 %doNTimes(Vector,Params = {MatrixChunk,Beta,K,N},Iters)->

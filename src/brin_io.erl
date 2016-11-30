@@ -1,5 +1,5 @@
 -module(brin_io).
--export([create_chunks/2, read_chunk/2]).
+-export([create_chunks/2, read_chunk/2,parse_file_path/1]).
 
 -include("../include/brin.hrl").
 
@@ -154,4 +154,4 @@ string_to_integer(DegreeLine) ->
   Degree.
 
 parse_file_path(ChunkId) ->
-    lists:join("/tmp/brinio/",integer_to_list(ChunkId)).
+    lists:concat(["/tmp/brio/",integer_to_list(ChunkId)]).
