@@ -2,7 +2,7 @@
 
 
 %% API
--export([doMap/5,test/0,doReduce/1]).
+-export([handle_map/3,doMap/5,test/0,doReduce/1]).
 
 -record(node,{
   source,
@@ -10,35 +10,45 @@
   destinations = []
 }).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%RPC CALLBACKS%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+handle_map(TaskPid, Dest, {ChunkId,VectorChunk,Beta,K,N}) ->
+    Dest ! {emit, TaskPid, node()},
+    io:format("Running on ~p~n", [node()]),
+    Res = doMap(ChunkId,VectorChunk,Beta,K,N),
+    Dest ! {emit, TaskPid, Res}.
+
 %%%%%%%%%%%%%%%%%%%%
 %%%%%MAP%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%
 
 test()->
-  doMap({123,456},[0.25,0.25,0.25,0.25],0.8,4,4).
+  doMap(123,[0.25,0.25,0.25,0.25],0.8,4,4).
 
-readMtx(_FilePath) ->
-%%    io:format("~p",[FilePath]),
-  [
-    #node{source=1,degree=3,destinations=[2,3,4]},
-    #node{source=2,degree=2,destinations=[1,4]},
-    #node{source=3,degree=1,destinations=[1]},
-    #node{source=4,degree=2,destinations=[2,3]}
-  ].
-
-doMap({ChunkId,ColId},VectorChunk,Beta,K,N) ->
-  FilePath = parseFilePath(ChunkId,ColId),
+doMap(ChunkId,VectorChunk,Beta,K,N) ->
+  FilePath = parseFilePath(ChunkId),
   MatrixChunk = readMtx(FilePath),
-  doNTimes(VectorChunk,{MatrixChunk,Beta,K,N},5000).
+  doUntilConverged(VectorChunk,{MatrixChunk,Beta,K,N},1000,0.01).
 
-doNTimes(Vector,_Params,0)->Vector;
-doNTimes(Vector,Params = {MatrixChunk,Beta,K,N},Iters)->
-  NewVector = operateVector(MatrixChunk,Vector,Beta,K,N),
-%  io:format("~p~n", [NewVector]),
-  doNTimes(NewVector,Params,Iters-1).
+doUntilConverged(Vector,{MatrixChunk,Beta,K,N},MaxIterations,Delta) when MaxIterations > 0 ->
+    NewVector = operateVector(MatrixChunk,Vector,Beta,K,N),
+    case isConverged(Vector,NewVector,Delta) of
+        true ->
+         NewVector;
+        _ -> doUntilConverged(NewVector,{MatrixChunk,Beta,K,N},MaxIterations-1,Delta)
+    end;
+doUntilConverged(Vector,_Params,MaxIterations,_Delta) when MaxIterations =:= 0 ->
+    Vector.
 
-
-parseFilePath(_X,_Y) -> "sdfasdf".
+isConverged(Old,New,Delta) ->
+    isConverged(lists:zip(Old,New),Delta).
+isConverged([],_) ->
+    true;
+isConverged([{A,B}|Rest],Delta) when abs(A-B) < Delta ->
+    isConverged(Rest,Delta);
+isConverged([{A,B}|_],Delta) when abs(A-B) > Delta ->
+    false.
 
 
 hasVal([E|_],Num) when E==Num ->
@@ -85,3 +95,23 @@ operateVector(MatrixChunk,VectorChunk,Beta,_K,N) ->
  doReduce({RowId,ChunkStepList}) ->
    Summed = lists:sum(ChunkStepList),
    {RowId,Summed}.
+
+
+
+%%%% MISC TEST FUCTIONS
+readMtx(_FilePath) ->
+%%    io:format("~p",[FilePath]),
+  [
+    #node{source=1,degree=3,destinations=[2,3,4]},
+    #node{source=2,degree=2,destinations=[1,4]},
+    #node{source=3,degree=1,destinations=[1]},
+    #node{source=4,degree=2,destinations=[2,3]}
+  ].
+
+parseFilePath(_X) -> "sdfasdf".
+
+%doNTimes(Vector,_Params,0)->Vector;
+%doNTimes(Vector,Params = {MatrixChunk,Beta,K,N},Iters)->
+%  NewVector = operateVector(MatrixChunk,Vector,Beta,K,N),
+%%  io:format("~p~n", [NewVector]),
+%  doNTimes(NewVector,Params,Iters-1).
