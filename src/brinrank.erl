@@ -16,18 +16,6 @@ calc(InputFileName, Beta, K, Iteraciones, Nodes, OutputFileName) ->
   MapResult = run_maps(Scheduler, VectorChunk, ChunkSize, Beta, N, length(SchedulerExecutors), NumChunks),
   MapResult.
 
-%%run_maps(Scheduler, Vector, ChunkSize, Beta, N, NumExecutors, NumChunks) ->
-%%  run_maps_aux(Scheduler, [], Vector, ChunkSize, Beta, N, NumExecutors, NumChunks),
-%%  receive {ok, Result} -> Result end.
-%%
-%%run_maps_aux(_, _, _, _, _, _, _, -1) -> ok;
-%%run_maps_aux(Scheduler, _, Vector, ChunkSize, Beta, N, ExecutorCnt, ChunkID) when ChunkID rem ExecutorCnt =:= 0 ->
-%%  {Head, Tail} = lists:split(ExecutorCnt, Vector),
-%%  run_maps_aux(Scheduler, Head, Tail, ChunkSize, Beta, N, ExecutorCnt, ChunkID);
-%%run_maps_aux(Scheduler, VectorChunk, Vector, ChunkSize, Beta, N, ExecutorCnt, ChunkID) ->
-%%  Scheduler ! {schedule, {map, ChunkID, VectorChunk, Beta, N}},
-%%  run_maps_aux(Scheduler, VectorChunk, Vector, ChunkSize, Beta, N, ExecutorCnt, ChunkID -1).
-
 run_maps(_Scheduler, _Vector, _ChunkSize, _Beta, _N, 0, _NumChunks) ->
   receive {ok, Result} -> Result end;
 run_maps(Scheduler, Vector, ChunkSize, Beta, N, NumExecutors, NumChunks) ->

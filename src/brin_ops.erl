@@ -16,6 +16,10 @@
 handle_map(TaskPid, Dest, {map, ChunkId, K, Vector, Beta, N}) ->
   Res = doMap(ChunkId, Vector, Beta, K, N),
   io:format("Emiting: ~p~n", [Res]),
+  Dest ! {emit, TaskPid, Res};
+handle_map(TaskPid, Dest, {reduce,{Key,ListVals}}) ->
+  Res = doReduce(Key,ListVals),
+  io:format("Emiting: ~p~n", [Res]),
   Dest ! {emit, TaskPid, Res}.
 
 %%%%%%%%%%%%%%%%%%%%
@@ -29,7 +33,7 @@ doMap(ChunkId, VectorChunk, Beta, K, N) ->
   io:format("Reading chunk at: ~s~n", [FilePath]),
   MatrixChunk = brin_io:read_chunk(FilePath, K),
 %%  doUntilConverged(VectorChunk,{MatrixChunk,Beta,K,N},1000,0.01).
-  operateVector(ChunkId, matrixChunk, VectorChunk, Beta, K, N).
+  operateVector(MatrixChunk, VectorChunk, Beta, N).
 
 hasVal([E | _], Num) when E == Num ->
   true;
@@ -38,27 +42,28 @@ hasVal([E | Rest], Num) when E =/= Num ->
 hasVal([], _) ->
   false.
 
-getOrZero(#node{degree = _Dg, destinations = Dest}, I) ->
+getOrZero(Node = #node{source = Source, degree = Degree, destinations = Dest}, I) ->
+  io:format("Node: ~p~n", [Node]),
   case hasVal(Dest, I) of
-    true -> _Dg;
-    false -> 0
+    true -> {Source, Degree};
+    false -> {Source, 0}
   end.
 
 %TODO: see if K shoud be the matrix size.
 % Beta is a small probability of jumping to a random page,
 % K is the size of the chunk, N is total number of nodes
-operateVector(ChunkId, MatrixChunk, VectorChunk, Beta, K, N) ->
+operateVector(MatrixChunk, VectorChunk, Beta, N) ->
   lists:map(fun(I) ->
-    Row = [getOrZero(Node, I) || Node <- MatrixChunk],
+    Row = [{Source, _} | _] = [getOrZero(Node, I) || Node <- MatrixChunk],
     Zipped = lists:zip(VectorChunk, Row), %{VectorVal,RowVal}
-    Mapped = lists:map(fun({Vi, Dg}) ->
+    Mapped = lists:map(fun({Vi, {_, Dg}}) ->
       case Dg of
         0 -> 0;
         _ -> Beta * Vi / Dg + (1 - Beta) / N % Page 179.
       end
                        end, Zipped),
-    {ChunkId * K + I, lists:sum(Mapped)}
-            end, lists:seq(0, length(VectorChunk))).
+    {Source, lists:sum(Mapped)}
+            end, lists:seq(0, length(VectorChunk)-1)).
 %%  operateVector(MatrixChunk,VectorChunk,Beta,[]);
 %%operateVector([Row|Rest],VectorChunk,Beta,Acc) ->
 %Result = VECTOR * ROW WITH THAT RANDOM SHIT IN THE FORMULA
@@ -89,3 +94,6 @@ doReduce({RowId, ChunkStepList}) ->
 %  NewVector = operateVector(MatrixChunk,Vector,Beta,K,N),
 %%  io:format("~p~n", [NewVector]),
 %  doNTimes(NewVector,Params,Iters-1).
+
+doReduce(Key, ListVals) ->
+  erlang:error(not_implemented).
