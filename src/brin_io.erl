@@ -3,7 +3,7 @@
 
 -include("../include/brin.hrl").
 
--spec create_chunks(FileName :: string(), Executors :: integer()) -> integer().
+-spec create_chunks(FileName :: string(), Executors :: integer()) -> tuple().
 create_chunks(FileName, Executors) ->
   {ok, IoDevice} = file:open(FileName, [read]),
   NumSites = read_num_sites(IoDevice),
