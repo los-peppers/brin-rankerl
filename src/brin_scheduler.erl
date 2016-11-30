@@ -28,15 +28,15 @@ event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, Tasks, Results) ->
         {schedule, Task} when Workers =/= [] ->
             io:format("DEBUG: Scheduling tastk~n"),
             [Worker|NewWorkers] = Workers,
-            case net_adm:ping(Worker) of
+            NewTasks = case net_adm:ping(Worker) of
                 pong ->
                     % Run task on worker node
                     TaskPid =  run_task(Worker, TaskModule, TaskFun, [self(), Task]),
-                    NewTasks = dict:append(TaskPid, {Worker, Task, []}, Tasks);
+                    dict:append(TaskPid, {Worker, Task, []}, Tasks);
                 pang ->
                     % Worker node down
                     self() ! {schedule, Task},
-                    NewTasks = Tasks
+                    Tasks
             end,
             event_loop(MasterPid, TaskModule, TaskFun, NewWorkers, TaskCnt, NewTasks, Results);
         % Scheduling task when there are no workers available or busy

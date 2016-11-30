@@ -1,0 +1,7 @@
+{application, brin, [
+  {description, "An implementation of Page Rank in Erlang"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {applications, [kernel, stdlib]},
+  {env, [{log_level, warn}]}
+]}.
