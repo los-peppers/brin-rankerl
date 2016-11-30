@@ -3,12 +3,8 @@
 
 %% API
 -export([doMap/4,test/0]).
+-include("../include/brin.hrl").
 
--record(node,{
-  source,
-  degree,
-  destinations = []
-}).
 
 %%%%%%%%%%%%%%%%%%%%
 %%%%%MAP%%%%%%%%%%%%

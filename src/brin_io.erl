@@ -1,13 +1,16 @@
 -module(brin_io).
--export([read_file/2]).
+-export([create_chunks/2, read_chunk/2]).
 
--spec read_file(FileName :: string(), Executors :: integer()) -> ok.
-read_file(FileName, Executors) ->
+-include("../include/brin.hrl").
+
+-spec create_chunks(FileName :: string(), Executors :: integer()) -> integer().
+create_chunks(FileName, Executors) ->
   {ok, IoDevice} = file:open(FileName, [read]),
   NumSites = read_num_sites(IoDevice),
   ChunkSize = NumSites div Executors + 1,
   create_chunks(IoDevice, Executors, ChunkSize, NumSites),
-  file:close(IoDevice).
+  file:close(IoDevice),
+  {ok, NumSites, math:pow(Executors, 2)}.
 
 read_num_sites(IoDevice) ->
   case io:get_line(IoDevice, "") of
@@ -34,7 +37,7 @@ open_chunk_devices(Id, Executors) ->
 do_open_chunk_devices(_Id, 0, Devices) ->
   lists:reverse(Devices);
 do_open_chunk_devices(Id, NumDevices, Devices) ->
-  FileName = lists:concat(["/tmp/brio/", integer_to_list(Id), ".pr"]),
+  FileName = lists:concat(["/tmp/brio/", integer_to_list(Id)]),
   {ok, IoDevice} = file:open(FileName, [write]),
   do_open_chunk_devices(Id + 1, NumDevices - 1, [IoDevice | Devices]).
 
@@ -47,15 +50,15 @@ do_create_chunk_block(IoDevice, ChunkDevices, BlockLines, ChunkSize, NumSites) w
       file:close(IoDevice),
       do_create_chunk_block(IoDevice, ChunkDevices, ChunkSize, ChunkSize, NumSites);
     Line ->
-      Neighbors = line_to_list(Line),
+      Neighbors = list_to_integers(Line),
       add_block_line(Neighbors, ChunkDevices, ChunkSize, NumSites),
       do_create_chunk_block(IoDevice, ChunkDevices, BlockLines + 1, ChunkSize, NumSites)
   end;
 do_create_chunk_block(_IoDevice, ChunkDevices, _BlockLines, _ChunkSize, _NumSites) ->
   {ok, ChunkDevices}.
 
-line_to_list(Line) ->
-  [begin {Int, _} = string:to_integer(Token), Int end || Token <- string:tokens(Line, " \n")].
+list_to_integers(Line) ->
+  [begin string_to_integer(Token) end || Token <- string:tokens(Line, " \n")].
 
 add_block_line(Neighbors, ChunkDevices, ChunkSize, NumSites) ->
   NumNeighbors = length(Neighbors),
@@ -101,3 +104,40 @@ write_line(Device, Line) -> do_write_line(Device, Line, os:type()).
 
 do_write_line(Device, Line, _) ->
   io:format(Device, "~s~n", [Line]).
+
+-spec read_chunk(string(), integer()) -> list(node()).
+read_chunk(FileName, K) ->
+  {ok, File} = file:open(FileName, [read]),
+  Id = extract_id(FileName),
+  Nodes = create_node(File, Id, K),
+  file:close(File),
+  Nodes.
+
+create_node(IoDevice, Id, K) ->
+  do_create_node(IoDevice, Id, K, []).
+
+do_create_node(_Device, _Id, 0, Nodes) -> Nodes;
+do_create_node(Device, Id, K, Nodes) when K > 0 ->
+  DegreeLine = io:get_line(Device, ""),
+  DestinationsLine = io:get_line(Device, ""),
+  Source = get_source(Id, K),
+  Degree = string_to_integer(DegreeLine),
+  Destinations = list_to_integers(DestinationsLine),
+  Node = #node{
+    source = Source,
+    degree = Degree,
+    destinations = Destinations
+  },
+  do_create_node(Device, Id, K, [Node | Nodes]).
+
+extract_id(FileName) ->
+  [Id | _] = lists:reverse(string:tokens(FileName, "/")),
+  string_to_integer(Id).
+
+get_source(0, _) -> 0;
+get_source(Id, K) ->
+  Id - Id rem K.
+
+string_to_integer(DegreeLine) ->
+  Degree = list_to_integer(DegreeLine),
+  Degree.
