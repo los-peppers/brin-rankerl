@@ -3,14 +3,14 @@
 
 -include("../include/brin.hrl").
 
--spec create_chunks(FileName :: string(), Executors :: integer()) -> integer().
+-spec create_chunks(FileName :: string(), Executors :: integer()) -> tuple().
 create_chunks(FileName, Executors) ->
   {ok, IoDevice} = file:open(FileName, [read]),
   NumSites = read_num_sites(IoDevice),
   ChunkSize = NumSites div Executors + 1,
   create_chunks(IoDevice, Executors, ChunkSize, NumSites),
   file:close(IoDevice),
-  {ok, NumSites, math:pow(Executors, 2)}.
+  {ok, NumSites, math:pow(Executors, 2), ChunkSize}.
 
 read_num_sites(IoDevice) ->
   case io:get_line(IoDevice, "") of
