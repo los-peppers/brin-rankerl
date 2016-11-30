@@ -13,12 +13,11 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%RPC CALLBACKS%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
-handle_map(TaskPid, Dest, {map,ChunkId,ChunkSize,Beta,K,N}) ->
+handle_map(TaskPid, Dest, {map,ChunkId,Vector,Beta,N}) ->
     io:format("called handle map"),
-    VectorChunk = lists:map(fun(_)-> 1/N end,lists:seq(1,ChunkSize)), %TODO: not generate at once. maybe
-    Dest ! {emit, TaskPid, node()},
+    K = length(Vector),
 %    io:format("Running on ~p~n", [node()]),
-    Res = doMap(ChunkId,VectorChunk,Beta,K,N),
+    Res = doMap(ChunkId,Vector,Beta,K,N),
     Dest ! {emit, TaskPid, Res}.
 
 %%%%%%%%%%%%%%%%%%%%
@@ -34,7 +33,8 @@ doMap(ChunkId,VectorChunk,Beta,K,N) ->
 %%  MatrixChunk = brin_io:read_chunk(FilePath,1),
   MatrixChunk = readMtx(""),
   io:format("~p~n",[MatrixChunk]),
-  doUntilConverged(VectorChunk,{MatrixChunk,Beta,K,N},1000,0.01).
+%%  doUntilConverged(VectorChunk,{MatrixChunk,Beta,K,N},1000,0.01).
+  operateVector(MatrixChunk,VectorChunk,Beta,K,N).
 
 readMtx(_FilePath) ->
 %%    io:format("~p",[_FilePath]),
@@ -81,7 +81,7 @@ getOrZero(#node{degree=_Dg,destinations=Dest},I) ->
 %TODO: see if K shoud be the matrix size.
 % Beta is a small probability of jumping to a random page,
 % K is the size of the chunk, N is total number of nodes
-operateVector(MatrixChunk,VectorChunk,Beta,_K,N) ->
+operateVector(MatrixChunk,VectorChunk,Beta,K,N) ->
   lists:map(fun(I)->
     Row = [getOrZero(Node,I) || Node <- MatrixChunk],
     Zipped = lists:zip(VectorChunk,Row), %{VectorVal,RowVal}
@@ -94,7 +94,7 @@ operateVector(MatrixChunk,VectorChunk,Beta,_K,N) ->
       end
     end,Zipped),
     lists:sum(Mapped)%Assuming elements are in order.
-  end,lists:seq(0,_K-1)).
+  end,lists:seq(0,K-1)).
 %%  operateVector(MatrixChunk,VectorChunk,Beta,[]);
 %%operateVector([Row|Rest],VectorChunk,Beta,Acc) ->
   %Result = VECTOR * ROW WITH THAT RANDOM SHIT IN THE FORMULA
