@@ -56,7 +56,7 @@ event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, Tasks, Results) ->
       NewTasks = dict:update(TaskPid, UpdateFun, Tasks),
       event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, NewTasks, Results);
     % Handle the normal exit of a worker
-    {'EXIT', TaskPid, normal} when TaskPid =/= self() ->
+    {'EXIT', TaskPid, normal} when TaskPid =/= self() andalso TaskPid =/= MasterPid->
       [{Worker, _, PartialResults}] = dict:fetch(TaskPid, Tasks),
       NewTasks = dict:erase(TaskPid, Tasks),
       NewWorkers = [Worker|Workers],
@@ -64,7 +64,7 @@ event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, Tasks, Results) ->
       NewResults = lists:append(PartialResults, Results),
       event_loop(MasterPid, TaskModule, TaskFun, NewWorkers, NewTaskCnt, NewTasks, NewResults);
     % Handle the unexpected exit of a worker
-    {'EXIT', TaskPid, Reason} when TaskPid =/= self() ->
+    {'EXIT', TaskPid, Reason} when TaskPid =/= self() andalso TaskPid =/= MasterPid ->
       [{Worker, Task, _}] = dict:fetch(TaskPid, Tasks),
       io:format("ERROR: Task ~p on worker ~p finished unexpectedly. Reason: ~p~n", [TaskPid, Worker, Reason]),
       NewTasks = dict:erase(TaskPid, Tasks),
