@@ -29,15 +29,15 @@ event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, Tasks, Results) ->
     {schedule, Task} when Workers =/= [] ->
       [Worker|NewWorkers] = Workers,
       NewTasks = case net_adm:ping(Worker) of
-                   pong ->
-                     % Run task on worker node
-                     TaskPid = run_task(Worker, TaskModule, TaskFun, [self(), Task]),
-                     dict:append(TaskPid, {Worker, Task, []}, Tasks);
-                   pang ->
-                     % Worker node down
-                     self() ! {schedule, Task},
-                     Tasks
-                 end,
+        pong ->
+          % Run task on worker node
+          TaskPid = spawn_link(Worker, TaskModule, TaskFun, [self(), Task]),
+          dict:append(TaskPid, {Worker, Task, []}, Tasks);
+        pang ->
+          % Worker node down
+          self() ! {schedule, Task},
+          Tasks
+      end,
       event_loop(MasterPid, TaskModule, TaskFun, NewWorkers, TaskCnt, NewTasks, Results);
     % Scheduling task when there are no workers available or busy
     {schedule, _} when Workers =:= [], RunningTasks =:= 0 -> exit(nowokers);
@@ -72,17 +72,3 @@ event_loop(MasterPid, TaskModule, TaskFun, Workers, TaskCnt, Tasks, Results) ->
       self() ! {schedule, Task},
       event_loop(MasterPid, TaskModule, TaskFun, NewWorkers, TaskCnt, NewTasks, Results)
   end.
-
-%% @doc Runs a function on a node. Retuns the ID of the linked process that
-%% handles the call. Errors on the remote call cause an exit.
--spec run_task(node(), module(), atom(), list(term())) -> pid().
-run_task(Node, Module, Fun, Params) ->
-  spawn_link(fun() ->
-    case rpc:call(Node, Module, Fun, [self() | Params]) of
-      {badrpc, Reason} -> exit(Reason);
-      _ -> ok
-    end
-             end
-  ).
-
-
