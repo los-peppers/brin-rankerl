@@ -25,14 +25,10 @@ handle_map(Dest, {reduce, {Key, ListVals}}) ->
 %%%%%%%%%%%%%%%%%%%%
 %%%%%MAP%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%
-test() ->
-  doMap(0, [0.25, 0.25, 0.25, 0.25], 0.8, 4, 4).
-
 doMap(ChunkId, VectorChunk, Beta, K, N) ->
   FilePath = brin_io:parse_file_path(ChunkId),
   io:format("Reading chunk at: ~s~n", [FilePath]),
   MatrixChunk = brin_io:read_chunk(FilePath, K),
-%%  doUntilConverged(VectorChunk,{MatrixChunk,Beta,K,N},1000,0.01).
   operateVector(MatrixChunk, VectorChunk, Beta, N).
 
 hasVal([E | _], Num) when E == Num ->
@@ -42,34 +38,28 @@ hasVal([E | Rest], Num) when E =/= Num ->
 hasVal([], _) ->
   false.
 
-getOrZero(Node = #node{source = Source, degree = Degree, destinations = Dest}, I) ->
+getOrZero(Node = #node{degree = Degree, destinations = Dest}, I) ->
   io:format("Node: ~p~n", [Node]),
   case hasVal(Dest, I) of
-    true -> {Source, Degree};
-    false -> {Source, 0}
+    true -> Degree;
+    false -> 0
   end.
 
-%TODO: see if K shoud be the matrix size.
 % Beta is a small probability of jumping to a random page,
 % K is the size of the chunk, N is total number of nodes
-operateVector(MatrixChunk, VectorChunk, Beta, N) ->
+operateVector(MatrixChunk = [Node | _], VectorChunk, Beta, N) ->
+  Start = Node#node.source,
   lists:map(fun(I) ->
-    Row = [{Source, _} | _] = [getOrZero(Node, I) || Node <- MatrixChunk],
+    Row = [getOrZero(Node, I) || Node <- MatrixChunk],
     Zipped = lists:zip(VectorChunk, Row), %{VectorVal,RowVal}
-    Mapped = lists:map(fun({Vi, {_, Dg}}) ->
+    Mapped = lists:map(fun({Vi, Dg}) ->
       case Dg of
         0 -> 0;
-        _ -> Beta * Vi / Dg + (1 - Beta) / N % Page 179.
+        _ -> (Beta * Vi) / Dg
       end
                        end, Zipped),
-    {Source, lists:sum(Mapped)}
-            end, lists:seq(0, length(VectorChunk)-1)).
-%%  operateVector(MatrixChunk,VectorChunk,Beta,[]);
-%%operateVector([Row|Rest],VectorChunk,Beta,Acc) ->
-%Result = VECTOR * ROW WITH THAT RANDOM SHIT IN THE FORMULA
-%operateVector(Rest,VectorChunk,Beta,[Result|Acc]);
-%%  operateVector([],_VectorChunk,Beta,Acc) ->
-%%lists:reverse(Acc).
+    {I, lists:sum(Mapped) + (1 - Beta) / N}
+            end, lists:seq(Start, Start + length(VectorChunk) - 1)).
 
 %%%%%%%%%%%%%%%%%%%%
 %%%%%REDUCE%%%%%%%%%
