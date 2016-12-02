@@ -1,5 +1,10 @@
 -module(brin_io).
--export([create_chunks/2, read_chunk/2, parse_file_path/1]).
+-export([
+  create_chunks/2,
+  read_chunk/2,
+  parse_file_path/1,
+  write_vector/2
+]).
 
 -include("../include/brin.hrl").
 
@@ -155,3 +160,9 @@ string_to_integer(DegreeLine) ->
 
 parse_file_path(ChunkId) ->
   lists:concat(["/tmp/brio/", integer_to_list(ChunkId)]).
+
+-spec write_vector(string(), list()) -> atom().
+write_vector(FileName, Vector) ->
+  {ok, File} = file:open(FileName, [write]),
+  lists:foreach(fun(Vi) -> io:fwrite(File, "~s~n", [float_to_list(Vi)]) end, Vector),
+  file:close(File).
