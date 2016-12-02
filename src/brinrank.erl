@@ -1,34 +1,34 @@
 -module(brinrank).
 
-%% Chúpenmela
 -export([
   calc/6
 ]).
 
-%%mainThread() -> mainThread("../data/entrada.txt", 1).
-
-calc(InputFileName, Beta, K, Iteraciones, Nodes, OutputFileName) ->
+calc(InputFileName, Beta, K, Iterations, Nodes, OutputFileName) ->
   NumChunks = trunc(math:pow(K, 2)),
   {ok, N, ChunkSize} = brin_io:create_chunks(InputFileName, length(Nodes) * K),
   SchedulerExecutors = lists:flatten([lists:duplicate(K, Node) || Node <- Nodes]),
   Scheduler = brin_scheduler:init(SchedulerExecutors, NumChunks, brin_ops, handle_map),
   VectorChunk = lists:map(fun(_) -> 1 / N end, lists:seq(1, N)),
+  ResultVector = calc_aux(Scheduler, VectorChunk, ChunkSize, Beta, N, length(SchedulerExecutors), NumChunks, Iterations),
+  brin_io:write_vector(OutputFileName, ResultVector).
 
-  %Running map
-  MapResult = run_maps(Scheduler, VectorChunk, ChunkSize, Beta, N, length(SchedulerExecutors), NumChunks),
-
-  %Collecting
+calc_aux(_Scheduler, _VectorChunk, _ChunkSize, _Beta, _N, _Executors, _NumChunks, 0) ->
+  _VectorChunk;
+calc_aux(Scheduler, VectorChunk, ChunkSize, Beta, N, Executors, NumChunks, Iterations) ->
+  MapResult = run_maps(Scheduler, VectorChunk, ChunkSize, Beta, N, Executors, NumChunks),
   GroupedByKey = collect_results(MapResult),
-  ReduceResult = run_reduce(Scheduler,GroupedByKey),
-  SortedResultingVector = lists:sort(ReduceResult,fun({KeyA,_},{KeyB,_})-> KeyA < KeyB end),
+  ReduceResult = run_reduce(Scheduler, GroupedByKey),
+  SortedResultingVector = lists:sort(ReduceResult, fun({KeyA, _}, {KeyB, _}) -> KeyA < KeyB end),
+  calc_aux(Scheduler, SortedResultingVector, ChunkSize, Beta, N, Executors, NumChunks, Iterations - 1).
 
-  SortedResultingVector.
-
-run_maps(_Scheduler, _Vector, _ChunkSize, _Beta, _N, 0, _NumChunks) ->
-  receive {ok, Result} -> Result end;
 run_maps(Scheduler, Vector, ChunkSize, Beta, N, NumExecutors, NumChunks) ->
-  {HeadVector, TailVector} = lists:split(N - NumExecutors, Vector),
-  run_maps_aux(Scheduler, TailVector, HeadVector, ChunkSize, Beta, N, NumExecutors, NumExecutors, NumChunks).
+  {HeadVector, TailVector} = lists:split(N - (NumExecutors * ChunkSize), Vector),
+  run_maps_aux(Scheduler, TailVector, HeadVector, ChunkSize, Beta, N, NumExecutors, NumExecutors, NumChunks),
+  receive {ok, Result} ->
+    io:format("Map Result: ~n~p~n", [Result]),
+    Result
+  end.
 
 run_maps_aux(_Scheduler, _ChunkVector, [], _ChunkSize, _Beta, _N, _NumExecutors, 0, 0) -> ok;
 run_maps_aux(Scheduler, _ChunkVector, Vector, ChunkSize, Beta, N, NumExecutors, 0, ChunkId) ->
@@ -40,52 +40,26 @@ run_maps_aux(Scheduler, ChunkVector, Vector, ChunkSize, Beta, N, NumExecutors, E
   run_maps_aux(Scheduler, ChunkVector, Vector, ChunkSize, Beta, N, NumExecutors, ExecutorCnt - 1, ChunkId - 1).
 
 collect_results(TupleResults) ->
-    collect_results(lists:flatten(TupleResults),maps:new()).
-collect_results([],Map) ->
+  collect_results(TupleResults, maps:new()).
+collect_results([], Map) ->
   Map;
-collect_results([{Key,Val}|Rest],Map) ->
-  case maps:find(Key,Map) of
+collect_results([{Key, Val} | Rest], Map) ->
+  case maps:find(Key, Map) of
     {ok, List} ->
-      NewList = [Val|List],
-      collect_results(Rest,maps:update(Key,NewList,Map));
+      NewList = [Val | List],
+      collect_results(Rest, maps:update(Key, NewList, Map));
     _ ->
       NewList = [Val],
-      collect_results(Rest,maps:put(Key,NewList,Map))
+      collect_results(Rest, maps:put(Key, NewList, Map))
   end.
 
-run_reduce(Scheduler,GroupedByKey) when is_map(GroupedByKey)->
-  lists:foreach(fun({Key,ListVals})->
-    Scheduler ! {schedule, {reduce,{Key,ListVals}}}
-  end,maps:keys(GroupedByKey)).
+run_reduce(Scheduler, GroupedByKey) when is_map(GroupedByKey) ->
+  lists:foreach(
+    fun({Key, ListVals}) ->
+      Scheduler ! {schedule, {reduce, {Key, ListVals}}}
+    end, maps:to_list(GroupedByKey)),
+  receive {ok, Result} ->
+    io:format("Reduce Result: ~n~p~n", [Result]),
+    Result
+  end.
 
-%%mainThread(File, Executors) ->
-%%  io:format("M: init~n"),
-%%  Scheduler = brin_scheduler:init(['bottom@127.0.0.1', 'right@127.0.0.1'], 2, brin_ops, handle_map),
-%%%    {ok, NumSites, NumberMapTasks, ChunkSize} = brin_io:create_chunks(File,Executors),
-%%
-%%%%    lists:map(fun(ChunkId)->
-%%%%        %Generate map task.
-%%%%        Scheduler ! {schedule, {map,{ChunkId,}}},
-%%%%    end,lists:seq(1,NumberMapTasks)), %TODO finish
-%%
-%%  % Test
-%%  io:format("Sending map"),
-%%  Scheduler ! {schedule, {map, 1, 4, 0.8, 1, 4}}, % K = Executors*, N = NumSites
-%%
-%%  io:format("M: send first~n"),
-%%%    Scheduler ! {schedule, {7000, 4}},
-%%  io:format("M: send second~n"),
-%%%    Scheduler ! {schedule, {7000, 6}}, io:format("M: wait~n"),
-%%  receive
-%%    {ok, Res} ->
-%%      io:format("Results: ~p~n", [Res]),
-%%  % Scheduler ! {schedule,{reduce,{RowId,[list of things]}}}
-%%  end,
-%%  io:format("done~n").
-%%
-%%
-%%test(TaskPid, Dest, {Milis, Res}) ->
-%%  Dest ! {emit, TaskPid, node()},
-%%  io:format("Running on ~p~n", [node()]),
-%%  timer:sleep(Milis),
-%%  Dest ! {emit, TaskPid, Res}.
