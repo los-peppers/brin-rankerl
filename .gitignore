@@ -5,5 +5,6 @@
 *.beam
 *.plt
 erl_crash.dump
+rebar3.crashdump
 _build/
 doc/
