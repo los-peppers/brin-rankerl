@@ -2,7 +2,7 @@
 
 
 %% API
--export([handle_map/3, doMap/5, test/0, doReduce/1]).
+-export([handle_map/2]).
 
 -record(node, {
   source,
@@ -13,14 +13,14 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%RPC CALLBACKS%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
-handle_map(TaskPid, Dest, {map, ChunkId, K, Vector, Beta, N}) ->
+handle_map(Dest, {map, ChunkId, K, Vector, Beta, N}) ->
   Res = doMap(ChunkId, Vector, Beta, K, N),
   io:format("Emiting: ~p~n", [Res]),
-  Dest ! {emit, TaskPid, Res};
-handle_map(TaskPid, Dest, {reduce,{Key,ListVals}}) ->
-  Res = doReduce(Key,ListVals),
+  Dest ! {emit, self(), Res};
+handle_map(Dest, {reduce, {Key, ListVals}}) ->
+  Res = doReduce({Key, ListVals}),
   io:format("Emiting: ~p~n", [Res]),
-  Dest ! {emit, TaskPid, Res}.
+  Dest ! {emit, self(), Res}.
 
 %%%%%%%%%%%%%%%%%%%%
 %%%%%MAP%%%%%%%%%%%%
@@ -78,22 +78,3 @@ operateVector(MatrixChunk, VectorChunk, Beta, N) ->
 doReduce({RowId, ChunkStepList}) ->
   Summed = lists:sum(ChunkStepList),
   {RowId, Summed}.
-
-
-%readMtx(_FilePath) ->
-%%%    io:format("~p",[FilePath]),
-%  [
-%    #node{source=1,degree=3,destinations=[2,3,4]},
-%    #node{source=2,degree=2,destinations=[1,4]},
-%    #node{source=3,degree=1,destinations=[1]},
-%    #node{source=4,degree=2,destinations=[2,3]}
-%  ].
-
-%doNTimes(Vector,_Params,0)->Vector;
-%doNTimes(Vector,Params = {MatrixChunk,Beta,K,N},Iters)->
-%  NewVector = operateVector(MatrixChunk,Vector,Beta,K,N),
-%%  io:format("~p~n", [NewVector]),
-%  doNTimes(NewVector,Params,Iters-1).
-
-doReduce(Key, ListVals) ->
-  erlang:error(not_implemented).
