@@ -17,49 +17,37 @@ calc_aux(_Scheduler, _VectorChunk, _ChunkSize, _Beta, _N, _Executors, _NumChunks
   _VectorChunk;
 calc_aux(Scheduler, VectorChunk, ChunkSize, Beta, N, Executors, NumChunks, Iterations) ->
   MapResult = run_maps(Scheduler, VectorChunk, ChunkSize, Beta, N, Executors, NumChunks),
-  GroupedByKey = collect_results(MapResult),
-  ReduceResult = run_reduce(Scheduler, GroupedByKey),
-  SortedResultingVector = lists:sort(ReduceResult, fun({KeyA, _}, {KeyB, _}) -> KeyA < KeyB end),
-  calc_aux(Scheduler, SortedResultingVector, ChunkSize, Beta, N, Executors, NumChunks, Iterations - 1).
+  NewVector = collect_results(MapResult, Beta, N),
+  calc_aux(Scheduler, NewVector, ChunkSize, Beta, N, Executors, NumChunks, Iterations - 1).
 
 run_maps(Scheduler, Vector, ChunkSize, Beta, N, NumExecutors, NumChunks) ->
-  {HeadVector, TailVector} = lists:split(N - (NumExecutors * ChunkSize), Vector),
+  {HeadVector, TailVector} = lists:split(length(Vector) - ChunkSize, Vector),
   run_maps_aux(Scheduler, TailVector, HeadVector, ChunkSize, Beta, N, NumExecutors, NumExecutors, NumChunks),
   receive {ok, Result} ->
     io:format("Map Result: ~n~p~n", [Result]),
     Result
   end.
 
+
 run_maps_aux(_Scheduler, _ChunkVector, [], _ChunkSize, _Beta, _N, _NumExecutors, 0, 0) -> ok;
 run_maps_aux(Scheduler, _ChunkVector, Vector, ChunkSize, Beta, N, NumExecutors, 0, ChunkId) ->
-  Index = max(0, length(Vector) - NumExecutors),
+  Index = max(0, length(Vector) - ChunkSize),
   {HeadVector, TailVector} = lists:split(Index, Vector),
   run_maps_aux(Scheduler, TailVector, HeadVector, ChunkSize, Beta, N, NumExecutors, NumExecutors, ChunkId);
 run_maps_aux(Scheduler, ChunkVector, Vector, ChunkSize, Beta, N, NumExecutors, ExecutorCnt, ChunkId) ->
   Scheduler ! {schedule, {map, ChunkId - 1, NumExecutors, ChunkVector, Beta, N}},
   run_maps_aux(Scheduler, ChunkVector, Vector, ChunkSize, Beta, N, NumExecutors, ExecutorCnt - 1, ChunkId - 1).
 
-collect_results(TupleResults) ->
-  collect_results(TupleResults, maps:new()).
-collect_results([], Map) ->
-  Map;
-collect_results([{Key, Val} | Rest], Map) ->
-  case maps:find(Key, Map) of
-    {ok, List} ->
-      NewList = [Val | List],
-      collect_results(Rest, maps:update(Key, NewList, Map));
-    _ ->
-      NewList = [Val],
-      collect_results(Rest, maps:put(Key, NewList, Map))
-  end.
+collect_results(TupleResults, Beta, N) ->
+  Map = collect_results(TupleResults, maps:new()),
+  SortedTuples = lists:sort(fun({Key1, _}, {Key2, _}) -> Key1 =< Key2 end, maps:to_list(Map)),
+  lists:map(
+    fun({_Key, Value}) ->
+      Value + (1 - Beta) / N
+    end, SortedTuples).
 
-run_reduce(Scheduler, GroupedByKey) when is_map(GroupedByKey) ->
-  lists:foreach(
-    fun({Key, ListVals}) ->
-      Scheduler ! {schedule, {reduce, {Key, ListVals}}}
-    end, maps:to_list(GroupedByKey)),
-  receive {ok, Result} ->
-    io:format("Reduce Result: ~n~p~n", [Result]),
-    Result
-  end.
+collect_results([], Map) -> Map;
+collect_results([{Key, Val} | Rest], Map) ->
+  NewMap = maps:update_with(Key, fun(MapVal) -> MapVal + Val end, Val, Map),
+  collect_results(Rest, NewMap).
 

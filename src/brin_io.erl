@@ -164,5 +164,5 @@ parse_file_path(ChunkId) ->
 -spec write_vector(string(), list()) -> atom().
 write_vector(FileName, Vector) ->
   {ok, File} = file:open(FileName, [write]),
-  lists:foreach(fun(Vi) -> io:fwrite(File, "~s~n", [float_to_list(Vi)]) end, Vector),
+  lists:foreach(fun(Vi) -> io:fwrite(File, "~.3g~n", [Vi]) end, Vector),
   file:close(File).
